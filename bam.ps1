@@ -1,7 +1,7 @@
 #-------------------------------------------------------------------------------
 # GENERAL VARIABLES & CREATION OF WINDOWS APPLICATION EVENT LOG, IF NOT CREATED
 #-------------------------------------------------------------------------------
-$xAppName = "BAM! (Bill's Application Manager) – Version 0.3"
+$xAppName = "BAM! (Bill's Application Manager) Version 0.3"
 $createdOn = 'Feb 6, 2014 13:00:00 EST'
 $createdBy = 'Bill Reed, wreed@appirio.com'
 $company = 'Appirio, Inc.'
@@ -9,12 +9,13 @@ $unAss = "***[Unassigned]***"
 $BamLogName = "BAMex"
 $BamLogSource = "BAMSource"
 If (!((Get-EventLog -List | Select-Object "Log") -match $BamLogName)) {new-EventLog -LogName $BamLogName -Source $BamLogSource}
-
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exdevlab01/PowerShell/ -Authentication Kerberos
+Import-PSSession $Session
+Import-Module ActiveDirectory
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Exchange Schema Versions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetExchangeSchemaVerions {
-    Import-Module ActiveDirectory
     $OutEXVdata = @()
     $ExForestAndDomain = Read-Host 'Please enter your forest and domain (i.e. DC=dev10,DC=net)'
     $ExOrg = Read-Host 'Please enter the Exchange Org Name (i.e. First Organization)'
@@ -27,7 +28,7 @@ function GetExchangeSchemaVerions {
     $OutEXVer.ExchOrgDomV = $ExchangeOrganizationDomainVersion.objectVersion
     $OutEXVdata += $OutEXVer
     $SavePathEXVdata = ('ExchangeSchema-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutEXVdata | Export-csv  -Path $SavePathEXVdata
+    $OutEXVdata | Export-csv  -Path $SavePathEXVdata  -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathEXVdata -Fore DarkRed -Back gray;start-sleep -seconds 1
 }
@@ -35,7 +36,6 @@ function GetExchangeSchemaVerions {
 # FUNCTION: Exchange Server Names and Versions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetExchangeServerNamesADV {
-    Import-Module ActiveDirectory
     $ExchangeServerData = @()
     $AdminDisplayVersion = get-exchangeServer | select *
     $OutDVer = "" | select Name,ADV
@@ -43,7 +43,7 @@ function GetExchangeServerNamesADV {
     $OutDVer.ADV = $AdminDisplayVersion.AdminDisplayVersion
     $ExchangeServerData += $OutDVer
     $SavePathExServerData = ('ExchangeServers-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $ExchangeServerData | Export-csv  -Path $SavePathExServerData
+    $ExchangeServerData | Export-csv  -Path $SavePathExServerData -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathExServerData -Fore DarkRed -Back gray;start-sleep -seconds 1
 }
@@ -59,14 +59,14 @@ function messageVolStatsToEventLog {
     begin{$i=0;$timer = [diagnostics.stopwatch]::startnew()}
     process {
         $i++
-        if (!($i % $increment)){Write-host “Processed $i in $($timer.elapsed.totalseconds) seconds” -nonewline}
+        if (!($i % $increment)){Write-host "Processed $i in $($timer.elapsed.totalseconds) seconds" -nonewline}
         $_
         }
     end {
-        write-host “Processed $i log records in $($timer.elapsed.totalseconds) seconds”
+        write-host "Processed $i log records in $($timer.elapsed.totalseconds) seconds"
         Write-Host "Average rate: $([int]($i/$timer.elapsed.totalseconds)) log recs/sec."
-        write-EventLog -LogName "BAMex" -Message “`rProcessed $i log records in $($timer.elapsed.totalseconds) seconds
-    Average rate: $([int]($i/$timer.elapsed.totalseconds)) log recs/sec” -Source "BAMex" -EventID 666 -EntryType Information
+        write-EventLog -LogName "BAMex" -Message "`rProcessed $i log records in $($timer.elapsed.totalseconds) seconds
+    Average rate: $([int]($i/$timer.elapsed.totalseconds)) log recs/sec" -Source "BAMex" -EventID 666 -EntryType Information
         }
     }
     function miniemailstats {
@@ -154,7 +154,7 @@ function GetFullAccess {
         }
     }
     $SavePathFAdata = ('FullAccess-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutFAData | Export-csv  -Path $SavePathFAdata
+    $OutFAData | Export-csv  -Path $SavePathFAdata -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathFAdata -Fore DarkRed -Back gray;start-sleep -seconds 1
 }
@@ -198,7 +198,7 @@ function GetSendOnBehalfAccess {
     $CurProcMbxSOB++
     }
     $SavePathSOBdata = ('SendOnBehalf-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutSOBData | Export-csv  -Path $SavePathSOBdata
+    $OutSOBData | Export-csv  -Path $SavePathSOBdata -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathSOBdata -Fore DarkRed -Back gray;start-sleep -seconds 1
 }
@@ -232,10 +232,34 @@ function GetSendAsAccess {
         }
     }
     $SavePathSAdata = ('SendAs-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutSAData | Export-csv  -Path $SavePathSAdata
+    $OutSAData | Export-csv  -Path $SavePathSAdata -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathSAdata -Fore DarkRed -Back gray;start-sleep -seconds 1
 }
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# FUNCTION: Get Mailbox Calendar Folder Total Message Counts & Sizes
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function GetMailboxCalenadarFolderItemCountsAndSize {
+    Write-Host 'INPUT filename.' -ForegroundColor Cyan -BackgroundColor DarkBlue;
+    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $OutCaldata = @()
+    $UserList = Get-Content $UserListFile
+    $CurProcMbxMFS = 1
+    write-EventLog -LogName $BamLogName -EventID 61 -Message "Results: Get Mailbox Calendar Folder Total Message Counts & Sizes saved: Started." -Source $BamLogSource -EntryType Information
+    Foreach ($UserID in $UserList) {
+        write-host -NoNewLine $CurProcMbxMFS -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        $FolderData = Get-MailboxFolderStatistics -Ide $UserID -FolderScope Calendar | Where {$_.Foldertype -ne "SyncIssues" -and $_.Foldertype -ne "Conflicts" -and $_.Foldertype -ne "LocalFailures" -and $_.Foldertype -ne "ServerFailures" -and $_.Foldertype -ne "RecoverableItemsRoot" -and $_.Foldertype -ne "RecoverableItemsDeletions" -and $_.Foldertype -ne "RecoverableItemsPurges" -and $_.Foldertype -ne "RecoverableItemsVersions" -and $_.Foldertype -ne "Root"} | select Identity,FolderPath,ItemsInFolder,FolderSize
+        $OutCaldata += $FolderData
+        $CurProcMbxMFS++
+    }
+    $SavePathFolderStatdata = ('CalendarItemStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
+    $OutCaldata | Export-csv  -Path $SavePathFolderStatdata -NoTypeInformation
+    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
+    Write-Host $SavePathFolderStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    write-EventLog -LogName $BamLogName -EventID 62 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: [$SavePathFolderStatdata]." -Source $BamLogSource -EntryType Information
+}
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Get Mailbox Folder Total Message Counts & Sizes
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -253,7 +277,7 @@ function GetMailboxFolderMsgCountsAndSize {
         $CurProcMbxMFS++
     }
     $SavePathFolderStatdata = ('MailboxFolderStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutMFSdata | Export-csv  -Path $SavePathFolderStatdata
+    $OutMFSdata | Export-csv  -Path $SavePathFolderStatdata  -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathFolderStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
     write-EventLog -LogName $BamLogName -EventID 62 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: [$SavePathFolderStatdata]." -Source $BamLogSource -EntryType Information
@@ -287,7 +311,7 @@ function GetMailboxMsgCountsAndSize {
         }
     }
     $SavePathStatdata = ('MailboxStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutStatData | Export-csv  -Path $SavePathStatdata
+    $OutStatData | Export-csv  -Path $SavePathStatdata -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
     write-EventLog -LogName $BamLogName -EventID 72 -Message "Results: Get Mailbox Total Message Count & Size saved: [$SavePathStatdata]." -Source $BamLogSource -EntryType Information
@@ -434,7 +458,7 @@ function VerifyDualDelivery {
     $CurrProcVDD++
     }
     $SavePathVDDdata = ('SpecDeliveryReport-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
-    $OutDDData | Export-csv  -Path $SavePathVDDdata
+    $OutDDData | Export-csv  -Path $SavePathVDDdata -NoTypeInformation
     Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
     Write-Host $SavePathVDDdata -Fore DarkRed -Back gray;start-sleep -seconds 1
     write-EventLog -LogName $BamLogName -EventID 99 -Message "Results: Special Delivery Method Report saved: [$SavePathVDDdata]." -Source $BamLogSource -EntryType Information
@@ -541,7 +565,7 @@ Function showMenuMailboxStats {
 $menuMailboxStats=@"
     1 Message Counts & Sizes by Mailbox
     2 Message Counts & Sizes by Mailbox Folder
-    3 $unAss
+    3 Calenadar Item Count & Size
     4 $unAss
     M Main Menu
 
@@ -551,7 +575,7 @@ Do {
     Switch (showMenuMailboxStats $menuMailboxStats "`tMailbox Statistics Menu" -clearscreen) {
         "1" { Measure-Command{GetMailboxMsgCountsAndSize};start-sleep 3}
         "2" { Measure-Command{GetMailboxFolderMsgCountsAndSize};start-sleep 3}
-        "3" { Write-Host $unAss -fore Green; start-sleep -seconds 1 }
+        "3" { Measure-Command{GetMailboxCalenadarFolderItemCountsAndSize};start-sleep 3}
         "4" { Write-Host $unAss -fore Green; start-sleep -seconds 1 }
         "M" { Return }
         Default {Write-Warning "MailboxStats MENU: Invalid Choice. Try again.";sleep -milliseconds 750}
@@ -676,109 +700,17 @@ $menuMain=@"
             "4" { thinkSpecialDelivery }
             "5" { Measure-Command{exportToPST};start-sleep 3 }
             "6" { Write-Host $unAss -fore Green; start-sleep -seconds 1 }
-            "Q" { Write-Host "
-                        ╦ ╦┌─┐┬  ┬┌─┐  ┌─┐  ┌┐┌┬┌─┐┌─┐  ┌┬┐┌─┐┬ ┬
-                        ╠═╣├─┤└┐┌┘├┤   ├─┤  │││││  ├┤    ││├─┤└┬┘
-                        ╩ ╩┴ ┴ └┘ └─┘  ┴ ┴  ┘└┘┴└─┘└─┘  ─┴┘┴ ┴ ┴o
-            " -fore Yellow; sleep -milliseconds 300; 
-                  Write-Host "
-                         _/_/_/                            _/  _/                                     
-                      _/          _/_/      _/_/      _/_/_/  _/_/_/    _/    _/    _/_/              
-                     _/  _/_/  _/    _/  _/    _/  _/    _/  _/    _/  _/    _/  _/_/_/_/             
-                    _/    _/  _/    _/  _/    _/  _/    _/  _/    _/  _/    _/  _/                    
-                     _/_/_/    _/_/      _/_/      _/_/_/  _/_/_/      _/_/_/    _/_/_/  _/  _/  _/   
-                                                                          _/                          
-                                                                         _/_/                             
-            " -fore cyan;sleep -milliseconds 300;
-write-host @"
-                  ##          ##
-                    ##      ##         )  )
-                  ##############
-                ####  ######  ####
-              ######################
-              ##  ##############  ##     )   )
-              ##  ##          ##  ##
-                    ####  ####
-
-
-"@ -fore Red;start-sleep -milliseconds 300
-write-host @"
-                            ##
-                          ##
-                            ##
-                              ##
-                            ##
-                          ##
-                            ##
-
-
-"@ -fore Yellow;start-sleep -milliseconds 300
-write-host @"
-                                ############
-                            ####################       )  )
-                          ########################
-                        ####  ####  ####  ####  ####
-                      ################################      ) )
-                          ######    ####    ######
-                            ##                ##
-
-
-"@ -fore Blue;start-sleep -milliseconds 300
-write-host @"
-
-
-                    ██████╗  █████╗ ███╗   ███╗███████╗     ██████╗ ██╗   ██╗███████╗██████╗               
-                   ██╔════╝ ██╔══██╗████╗ ████║██╔════╝    ██╔═══██╗██║   ██║██╔════╝██╔══██╗              
-                   ██║  ███╗███████║██╔████╔██║█████╗      ██║   ██║██║   ██║█████╗  ██████╔╝              
-                   ██║   ██║██╔══██║██║╚██╔╝██║██╔══╝      ██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗              
-                   ╚██████╔╝██║  ██║██║ ╚═╝ ██║███████╗    ╚██████╔╝ ╚████╔╝ ███████╗██║  ██║              
-                    ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝     ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝              
-
-
-"@ -fore DarkRed;start-sleep -milliseconds 300
-write-host @"                                                                                                           
-
-
-
-
-                   ██╗  ██╗██╗ ██████╗ ██╗  ██╗    ███████╗ ██████╗ ██████╗ ██████╗ ███████╗               
-                   ██║  ██║██║██╔════╝ ██║  ██║    ██╔════╝██╔════╝██╔═══██╗██╔══██╗██╔════╝               
-                   ███████║██║██║  ███╗███████║    ███████╗██║     ██║   ██║██████╔╝█████╗                 
-                   ██╔══██║██║██║   ██║██╔══██║    ╚════██║██║     ██║   ██║██╔══██╗██╔══╝                 
-                   ██║  ██║██║╚██████╔╝██║  ██║    ███████║╚██████╗╚██████╔╝██║  ██║███████╗               
-                   ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═╝    ╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝               
-"@ -fore white;start-sleep -milliseconds 300
-write-host @" 
-
-                                                                                                           
- ██╗    ██████╗  ██████╗  ██████╗     ██████╗  ██████╗  ██████╗              ██████╗  █████╗ ███╗   ███╗██╗
-███║   ██╔═████╗██╔═████╗██╔═████╗   ██╔═████╗██╔═████╗██╔═████╗             ██╔══██╗██╔══██╗████╗ ████║██║
-╚██║   ██║██╔██║██║██╔██║██║██╔██║   ██║██╔██║██║██╔██║██║██╔██║             ██████╔╝███████║██╔████╔██║██║
- ██║   ████╔╝██║████╔╝██║████╔╝██║   ████╔╝██║████╔╝██║████╔╝██║             ██╔══██╗██╔══██║██║╚██╔╝██║╚═╝
- ██║▄█╗╚██████╔╝╚██████╔╝╚██████╔╝▄█╗╚██████╔╝╚██████╔╝╚██████╔╝             ██████╔╝██║  ██║██║ ╚═╝ ██║██╗
- ╚═╝╚═╝ ╚═════╝  ╚═════╝  ╚═════╝ ╚═╝ ╚═════╝  ╚═════╝  ╚═════╝              ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝
-"@ -fore blue;start-sleep -milliseconds 300
-
-
-                  Return }
+            "Q" { Write-Host "Have a nice day." -fore Yellow; sleep -milliseconds 300;
+            Return }
             Default { Write-Warning "MAIN MENU: Invalid Choice. Try again.";sleep -seconds 1 }
         }
     } While ($TRUE)
 }
-#The.End...Have.A.Nice.Day...The.End...Have.A.Nice.Day...The.End...Have.A.Nice.Day...
 clear
 write-host @"
 
-                888888b.         d8888 888b     d888 888 
-                888  "88b       d88888 8888b   d8888 888 
-                888  .88P      d88P888 88888b.d88888 888 
-                8888888K.     d88P 888 888Y88888P888 888 
-                888  "Y88b   d88P  888 888 Y888P 888 888 
-                888    888  d88P   888 888  Y8P  888 Y8P 
-                888   d88P d8888888888 888   "   888  "  
-                8888888P" d88P     888 888       888 888 
-
                 $xAppName
+
                 ==============================================
                  Created on:   $createdOn
                  Created by:   $createdBy
