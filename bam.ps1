@@ -9,7 +9,8 @@ $unAss = "***[Unassigned]***"
 $BamLogName = "BAMex"
 $BamLogSource = "BAMSource"
 If (!((Get-EventLog -List | Select-Object "Log") -match $BamLogName)) {new-EventLog -LogName $BamLogName -Source $BamLogSource}
-$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://exdevlab01/PowerShell/ -Authentication Kerberos
+$ConnectUri = Read-Host 'Please enter the FQDN of your Excahnge Mailbox server '
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://$ConnectUri/PowerShell/ -Authentication Kerberos
 Import-PSSession $Session
 Import-Module ActiveDirectory
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -246,7 +247,7 @@ function GetMailboxCalenadarFolderItemCountsAndSize {
     $OutCaldata = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxMFS = 1
-    write-EventLog -LogName $BamLogName -EventID 61 -Message "Results: Get Mailbox Calendar Folder Total Message Counts & Sizes saved: Started." -Source $BamLogSource -EntryType Information
+    write-EventLog -LogName $BamLogName -EventID 61 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: Started." -Source $BamLogSource -EntryType Information
     Foreach ($UserID in $UserList) {
         write-host -NoNewLine $CurProcMbxMFS -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
         $FolderData = Get-MailboxFolderStatistics -Ide $UserID -FolderScope Calendar | Where {$_.Foldertype -ne "SyncIssues" -and $_.Foldertype -ne "Conflicts" -and $_.Foldertype -ne "LocalFailures" -and $_.Foldertype -ne "ServerFailures" -and $_.Foldertype -ne "RecoverableItemsRoot" -and $_.Foldertype -ne "RecoverableItemsDeletions" -and $_.Foldertype -ne "RecoverableItemsPurges" -and $_.Foldertype -ne "RecoverableItemsVersions" -and $_.Foldertype -ne "Root"} | select Identity,FolderPath,ItemsInFolder,FolderSize
