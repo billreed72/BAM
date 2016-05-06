@@ -318,13 +318,27 @@ function GetMailboxMsgCountsAndSize {
     write-EventLog -LogName $BamLogName -EventID 72 -Message "Results: Get Mailbox Total Message Count & Size saved: [$SavePathStatdata]." -Source $BamLogSource -EntryType Information
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# FUNCTION: Create User Mailboxes in Bulk
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function createUserMailboxesInBulk {
+	$password = Read-Host "Enter a default password" -AsSecureString
+	$OU = Read-Host "Enter an OU for the new users (i.e. domain.net/GoogleUsers MUST ALREADY EXIST)"
+	$inputFile = Read-Host "Enter the path to your input file"
+	$CurProcCUIB = 1
+	Import-CSV $inputFile | ForEach {
+		Write-Host -NoNewLine $CurProcCUIB -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+		New-Mailbox -Alias $_.alias -Name $_.name -userPrincipalName $_.UPN -OrganizationalUnit $OU -Password $password
+		$CurProcCUIB++
+		}
+}
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: SETUP Dual Delivery (CREATES CONTACTS,SETS DELV OPTS, & HIDES CONTACTS)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function SetupDualDelivery {
     Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
     $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
     $sdDomain = Read-Host 'Remote domain Special Delivery ( @galias.domain.com )'
-    $sdOU = Read-Host 'OU for Special Delivery Contacts ( dev10.net/SpecialDelivery )'
+    $sdOU = Read-Host 'OU for Special Delivery Contacts (i.e. domain.net/DualDelivery MUST ALREADY EXIST)"'
     $UserList = Get-Content $UserListFile
     $CurProcSUDD = 1
     foreach ($UserID in $UserList) {
@@ -567,7 +581,7 @@ $menuMailboxStats=@"
     1 Message Counts & Sizes by Mailbox
     2 Message Counts & Sizes by Mailbox Folder
     3 Calenadar Item Count & Size
-    4 $unAss
+    4 Create User Mailboxes In Bulk
     M Main Menu
 
     Select a task by number or M
@@ -577,7 +591,7 @@ Do {
         "1" { Measure-Command{GetMailboxMsgCountsAndSize};start-sleep 3}
         "2" { Measure-Command{GetMailboxFolderMsgCountsAndSize};start-sleep 3}
         "3" { Measure-Command{GetMailboxCalenadarFolderItemCountsAndSize};start-sleep 3}
-        "4" { Write-Host $unAss -fore Green; start-sleep -seconds 1 }
+        "4" { Measure-Command{CreateUserMailboxesInBulk};start-sleep 3}
         "M" { Return }
         Default {Write-Warning "MailboxStats MENU: Invalid Choice. Try again.";sleep -milliseconds 750}
     }
