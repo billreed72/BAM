@@ -13,6 +13,11 @@ $ConnectUri = Read-Host 'Please enter the FQDN of your Excahnge Mailbox server '
 $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://$ConnectUri/PowerShell/ -Authentication Kerberos
 Import-PSSession $Session
 Import-Module ActiveDirectory
+
+. ./lib/Menu.ps1
+. ./lib/UserInput.ps1
+. ./lib/Progress.ps1
+. ./lib/Output.ps1
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Exchange Schema Versions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,8 +35,7 @@ function GetExchangeSchemaVerions {
     $OutEXVdata += $OutEXVer
     $SavePathEXVdata = ('ExchangeSchema-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutEXVdata | Export-csv  -Path $SavePathEXVdata  -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathEXVdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathEXVdata
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Exchange Server Names and Versions
@@ -45,8 +49,7 @@ function GetExchangeServerNamesADV {
     $ExchangeServerData += $OutDVer
     $SavePathExServerData = ('ExchangeServers-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $ExchangeServerData | Export-csv  -Path $SavePathExServerData -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathExServerData -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathExServerData
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Message Volume Stats to Event Logs
@@ -133,13 +136,12 @@ function dailyMailVolStats {
 # FUNCTION: Get Full Access Permissions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetFullAccess {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutFAData = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxFA = 1
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcMbxFA -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxFA
         $GrantedFullAccessList = @()
         $FullAccessUserID = Get-MailboxPermission -Identity $UserID | Where { ($_.AccessRights -eq 'FullAccess' -and $_.IsInherited -eq $False -and $_.User -notlike 'NT AUTHORITY\SELF') } | Select User
         $GrantedFullAccessList += $FullAccessUserID
@@ -156,15 +158,13 @@ function GetFullAccess {
     }
     $SavePathFAdata = ('FullAccess-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutFAData | Export-csv  -Path $SavePathFAdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathFAdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathFAdata
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Get Send On Behalf Access Permissions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetSendOnBehalfAccess {
-    Write-Host 'INPUT filename:' -Fore Cyan -Back DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutSOBData = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxSOB = 1
@@ -179,7 +179,7 @@ function GetSendOnBehalfAccess {
         return $grpfinal
     }
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcMbxSOB -Fore Blue -Back White; Write-Host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxSOB
         $FinalList = @()
         $User = Get-mailbox $UserID
         $InitialList = $User.GrantSendOnBehalfTo
@@ -200,20 +200,18 @@ function GetSendOnBehalfAccess {
     }
     $SavePathSOBdata = ('SendOnBehalf-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutSOBData | Export-csv  -Path $SavePathSOBdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathSOBdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathSOBdata
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Get Send As Access Permissions
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetSendAsAccess {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutSAData = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxSA = 1
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcMbxSA -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxSA
         $ADIDList = @()
         $UserADID = Get-mailbox $UserID | select PrimarySMTPAddress,Identity
         $ADIDList += $UserADID
@@ -234,30 +232,27 @@ function GetSendAsAccess {
     }
     $SavePathSAdata = ('SendAs-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutSAData | Export-csv  -Path $SavePathSAdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathSAdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathSAdata
 }
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Get Mailbox Calendar Folder Total Message Counts & Sizes
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetMailboxCalenadarFolderItemCountsAndSize {
-    Write-Host 'INPUT filename.' -ForegroundColor Cyan -BackgroundColor DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutCaldata = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxMFS = 1
     write-EventLog -LogName $BamLogName -EventID 61 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: Started." -Source $BamLogSource -EntryType Information
     Foreach ($UserID in $UserList) {
-        write-host -NoNewLine $CurProcMbxMFS -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxMFS
         $FolderData = Get-MailboxFolderStatistics -Ide $UserID -FolderScope Calendar | Where {$_.Foldertype -ne "SyncIssues" -and $_.Foldertype -ne "Conflicts" -and $_.Foldertype -ne "LocalFailures" -and $_.Foldertype -ne "ServerFailures" -and $_.Foldertype -ne "RecoverableItemsRoot" -and $_.Foldertype -ne "RecoverableItemsDeletions" -and $_.Foldertype -ne "RecoverableItemsPurges" -and $_.Foldertype -ne "RecoverableItemsVersions" -and $_.Foldertype -ne "Root"} | select Identity,FolderPath,ItemsInFolder,FolderSize
         $OutCaldata += $FolderData
         $CurProcMbxMFS++
     }
     $SavePathFolderStatdata = ('CalendarItemStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutCaldata | Export-csv  -Path $SavePathFolderStatdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathFolderStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathFolderStatdata
     write-EventLog -LogName $BamLogName -EventID 62 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: [$SavePathFolderStatdata]." -Source $BamLogSource -EntryType Information
 }
 
@@ -265,36 +260,33 @@ function GetMailboxCalenadarFolderItemCountsAndSize {
 # FUNCTION: Get Mailbox Folder Total Message Counts & Sizes
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetMailboxFolderMsgCountsAndSize {
-    Write-Host 'INPUT filename.' -ForegroundColor Cyan -BackgroundColor DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutMFSData = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxMFS = 1
     write-EventLog -LogName $BamLogName -EventID 61 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: Started." -Source $BamLogSource -EntryType Information
     Foreach ($UserID in $UserList) {
-        write-host -NoNewLine $CurProcMbxMFS -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxMFS
         $FolderData = Get-MailboxFolderStatistics -Ide $UserID | Where {$_.Foldertype -ne "SyncIssues" -and $_.Foldertype -ne "Conflicts" -and $_.Foldertype -ne "LocalFailures" -and $_.Foldertype -ne "ServerFailures" -and $_.Foldertype -ne "RecoverableItemsRoot" -and $_.Foldertype -ne "RecoverableItemsDeletions" -and $_.Foldertype -ne "RecoverableItemsPurges" -and $_.Foldertype -ne "RecoverableItemsVersions" -and $_.Foldertype -ne "Root"} | select Identity,FolderPath,ItemsInFolder,FolderSize
         $OutMFSData += $FolderData
         $CurProcMbxMFS++
     }
     $SavePathFolderStatdata = ('MailboxFolderStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutMFSdata | Export-csv  -Path $SavePathFolderStatdata  -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathFolderStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathFolderStatdata
     write-EventLog -LogName $BamLogName -EventID 62 -Message "Results: Get Mailbox Folder Total Message Counts & Sizes saved: [$SavePathFolderStatdata]." -Source $BamLogSource -EntryType Information
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # FUNCTION: Get Mailbox Total Message Count & Size
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function GetMailboxMsgCountsAndSize {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)';
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutStatData = @()
     $UserList = Get-Content $UserListFile
     $CurProcMbxStat = 1
     write-EventLog -LogName $BamLogName -EventID 71 -Message "Results: Get Mailbox Total Message Count & Size saved: Started." -Source $BamLogSource -EntryType Information
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcMbxStat -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxStat
         $StatList = @()
         $StatList += $UserID
         foreach ($USerID in $StatList) {
@@ -313,8 +305,7 @@ function GetMailboxMsgCountsAndSize {
     }
     $SavePathStatdata = ('MailboxStats-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutStatData | Export-csv  -Path $SavePathStatdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathStatdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathStatdata
     write-EventLog -LogName $BamLogName -EventID 72 -Message "Results: Get Mailbox Total Message Count & Size saved: [$SavePathStatdata]." -Source $BamLogSource -EntryType Information
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -326,7 +317,7 @@ function createUserMailboxesInBulk {
 	$inputFile = Read-Host "Enter the path to your input file"
 	$CurProcCUIB = 1
 	Import-CSV $inputFile | ForEach {
-		Write-Host -NoNewLine $CurProcCUIB -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+		Show-Progress -Current $CurProcCUIB
 		New-Mailbox -Alias $_.alias -Name $_.name -userPrincipalName $_.UPN -OrganizationalUnit $OU -Password $password
 		$CurProcCUIB++
 		}
@@ -335,14 +326,13 @@ function createUserMailboxesInBulk {
 # FUNCTION: SETUP Dual Delivery (CREATES CONTACTS,SETS DELV OPTS, & HIDES CONTACTS)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function SetupDualDelivery {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $sdDomain = Read-Host 'Remote domain Special Delivery ( @galias.domain.com )'
     $sdOU = Read-Host 'OU for Special Delivery Contacts (i.e. domain.net/DualDelivery MUST ALREADY EXIST)"'
     $UserList = Get-Content $UserListFile
     $CurProcSUDD = 1
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcSUDD -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcSUDD
         $F = (Get-recipient $USerID).firstName
         $L = (Get-recipient $UserID).lastName
         $D = (Get-recipient $UserID).displayName
@@ -360,14 +350,13 @@ function SetupDualDelivery {
 # FUNCTION: SETUP Split Delivery (CREATES CONTACTS,SETS DELV OPTS, & HIDES CONTACTS)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function SetupSplitDelivery {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $sdDomain = Read-Host 'Special Delivery Domain ( @galias.domain.com )'
     $sdOU = Read-Host 'Special Delivery Contacts OU ( dev10.net/SpecialDelivery )'
     $UserList = Get-Content $UserListFile
     $CurProcSUDS = 1
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcSUDS -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcSUDS
         $F = (Get-recipient $USerID).firstName
         $L = (Get-recipient $UserID).lastName
         $D = (Get-recipient $UserID).displayName
@@ -403,13 +392,12 @@ function createTransRule {
     write-EventLog -LogName $BamLogName -EventID 666 -Message "Transportation rule [$tRuleName] created." -Source $BamLogSource -EntryType Information
 }    
 function addMembersToDistro {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue;
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $UserList = Get-Content $UserListFile
     $groupName = get-group | Where { ($_.Notes -contains 'Created by BAMex!') } | select Identity
     $CurProcMbxARM = 1
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurProcMbxARM -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurProcMbxARM
         Add-DistributionGroupMember -Identity $groupName.Identity -Member $UserID
         $CurProcMbxARM++
     }
@@ -423,8 +411,7 @@ write-EventLog -LogName $BamLogName -EventID 666 -Message "Delivery Restriction 
 # FUNCTION: VERIFY DUAL DELIVERY CONTACT DATA
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function ValidateDDContactData {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $UserList = Get-Content $UserListFile  
     foreach ($UserID in $UserList) {
         $F = (Get-recipient $USerID).firstName
@@ -439,8 +426,7 @@ function ValidateDDContactData {
 # FUNCTION: VERIFY SPLIT DELIVERY CONTACT DATA
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function ValidateSDContactData {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $UserList = Get-Content $UserListFile  
     foreach ($UserID in $UserList) {
         $F = (Get-recipient $USerID).firstName
@@ -455,15 +441,14 @@ function ValidateSDContactData {
 # FUNCTION: REPORT ON DELIVERY OPTIONS
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function VerifyDualDelivery {
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $OutDDData = @()
     $UserList = Get-Content $UserListFile 
     $CurrProcVDD = 1
     write-EventLog -LogName $BamLogName -EventID 99 -Message "Dual Delivery Report: Started." -Source $BamLogSource -EntryType Information
     foreach ($UserID in $UserList) {
         If ($UserID -ne $NULL) {
-        write-host -NoNewLine $CurrProcVDD -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurrProcVDD
         $OutDDObject = "" | select Mailbox,FwdSMTPAddress,DeliverToMailboxAndForward
         $OutDDObject.Mailbox = (get-mailbox $UserID).primarySMTPAddress
         $OutDDObject.FwdSMTPAddress = (get-recipient (get-mailbox $UserID).ForwardingAddress).primarySMTPAddress
@@ -474,8 +459,7 @@ function VerifyDualDelivery {
     }
     $SavePathVDDdata = ('SpecDeliveryReport-{1:yyyyMMddHHmmss}.csv' -f $env:COMPUTERNAME,(Get-Date))
     $OutDDData | Export-csv  -Path $SavePathVDDdata -NoTypeInformation
-    Write-Host 'Results saved: ' -Fore Yellow -Back Blue -NoNewLine;
-    Write-Host $SavePathVDDdata -Fore DarkRed -Back gray;start-sleep -seconds 1
+    Show-ResultsSaved -Path $SavePathVDDdata
     write-EventLog -LogName $BamLogName -EventID 99 -Message "Results: Special Delivery Method Report saved: [$SavePathVDDdata]." -Source $BamLogSource -EntryType Information
 }
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -483,14 +467,13 @@ function VerifyDualDelivery {
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 function exportToPST {
     New-ManagementRoleAssignment -Role "Mailbox Import Export" -User Administrator | Out-Null
-    Write-Host 'INPUT filename.' -Fore Cyan -Back DarkBlue
-    $UserListFile = Read-Host '(i.e. c:\userList.csv or userList.csv)'
+    $UserListFile = Get-UserInput -Prompt '(i.e. c:\userList.csv or userList.csv)'
     $PSTPath = Read-Host "UNC Path to Save PST Files (i.e. \\server\share\ ) "
     $UserList = Get-Content $UserListFile
     $CurrProcExpPst = 1
     write-EventLog -LogName $BamLogName -EventID 99 -Message "Exporting to PST : Started." -Source $BamLogSource -EntryType Information
     foreach ($UserID in $UserList) {
-        Write-Host -NoNewLine $CurrProcExpPst -Fore Blue -Back White; write-host '.' -Fore Red -Back White -NoNewLine
+        Show-Progress -Current $CurrProcExpPst
         If ($UserID -ne $NULL) {
         New-MailboxExportRequest -Mailbox $UserID -FilePath "$PSTPath$UserID.pst" | out-null
         }
@@ -501,21 +484,6 @@ function exportToPST {
 # MENU: Special Delivery Menu
 #=================================
 Function thinkSpecialDelivery {
-Function showMenuSpecialDelivery {
-    Param (
-        [Parameter(Position=0,Mandatory=$TRUE,HelpMessage="Special Delivery Menu Help text")] [ValidateNotNullOrEmpty()] [string]$menuSpecialDelivery,
-        [Parameter(Position=1)] [ValidateNotNullOrEmpty()] [string]$TitleSpecialDelivery="menuSpecialDelivery",
-        [switch] $clearScreen
-    )
-    if ($clearScreen) {Clear-Host}
-    Write-Host "`n`t$xAppName`n" -fore Magenta
-    $menuSpecialDeliveryPrompt = $titleSpecialDelivery
-    $menuSpecialDeliveryPrompt += "`n`t"
-    $menuSpecialDeliveryPrompt += "="*$titleSpecialDelivery.Length
-    $menuSpecialDeliveryPrompt += "`n"
-    $menuSpecialDeliveryPrompt += $menuSpecialDelivery
-    Read-Host -Prompt $menuSpecialDeliveryPrompt
-}
 $menuSpecialDelivery=@"
   Dual Delivery Tasks:
     1 Add Mailboxes
@@ -541,7 +509,7 @@ $menuSpecialDelivery=@"
     Select a task by number or M
 "@
 Do {
-    Switch (showMenuSpecialDelivery $menuSpecialDelivery "`tSpecial Delivery Menu" -clearScreen) {
+    Switch (Show-Menu $menuSpecialDelivery "`tSpecial Delivery Menu" -clearScreen) {
         "1" { Measure-Command{SetupDualDelivery};start-sleep 3 }
         "2" { Write-Host $unAss -fore Green; start-sleep -seconds 1 }
         "3" { Measure-Command{SetupSplitDelivery};start-sleep 3 }
@@ -562,21 +530,6 @@ Do {
 # MENU: Query Mailbox Statistics
 #=================================
 Function thinkMailboxStats {
-Function showMenuMailboxStats {
-    Param(
-    [Parameter(Position=0,Mandatory=$TRUE,HelpMessage="Enter your Mailbox Statistics menu text")] [ValidateNotNullOrEmpty()] [string]$menuMailboxStats,
-    [Parameter(Position=1)] [ValidateNotNullOrEmpty()] [string]$TitleMailboxStats="menuMailboxStats" ,
-    [switch]$clearScreen
-    )
-    if ($clearScreen) {Clear-Host}
-        Write-Host "`n`t$xAppName`n" -Fore Magenta
-        $menuMailboxStatsPrompt=$titleMailboxStats
-        $menuMailboxStatsPrompt+="`n`t"
-        $menuMailboxStatsPrompt+="-"*$titleMailboxStats.Length
-        $menuMailboxStatsPrompt+="`n"
-        $menuMailboxStatsPrompt+=$menuMailboxStats
-        Read-Host -Prompt $menuMailboxStatsPrompt
-}
 $menuMailboxStats=@"
     1 Message Counts & Sizes by Mailbox
     2 Message Counts & Sizes by Mailbox Folder
@@ -587,7 +540,7 @@ $menuMailboxStats=@"
     Select a task by number or M
 "@
 Do {
-    Switch (showMenuMailboxStats $menuMailboxStats "`tMailbox Statistics Menu" -clearscreen) {
+    Switch (Show-Menu $menuMailboxStats "`tMailbox Statistics Menu" -clearscreen) {
         "1" { Measure-Command{GetMailboxMsgCountsAndSize};start-sleep 3}
         "2" { Measure-Command{GetMailboxFolderMsgCountsAndSize};start-sleep 3}
         "3" { Measure-Command{GetMailboxCalenadarFolderItemCountsAndSize};start-sleep 3}
@@ -601,21 +554,6 @@ Do {
 # MENU: MAILBOX PERMISSIONS
 #=================================
 Function thinkMenuMailboxPermissions {
-Function showMenuMailboxPermissions {
-    Param(
-    [Parameter(Position=0,Mandatory=$TRUE,HelpMessage="Mailbox Permissions Menu Help text")] [ValidateNotNullOrEmpty()] [string]$menuMailboxPermissions,
-    [Parameter(Position=1)] [ValidateNotNullOrEmpty()] [string]$TitleMailboxPermissions="menuMailboxPermissions" ,
-    [switch]$clearScreen
-    )
-    if ($clearScreen) {Clear-Host}
-    Write-Host "`n`t$xAppName`n" -Fore Magenta
-    $menuMailboxPermissionsPrompt=$titleMailboxPermissions
-    $menuMailboxPermissionsPrompt+="`n`t"
-    $menuMailboxPermissionsPrompt+="="*$titleMailboxPermissions.Length
-    $menuMailboxPermissionsPrompt+="`n"
-    $menuMailboxPermissionsPrompt+=$menuMailboxPermissions
-    Read-Host -Prompt $menuMailboxPermissionsPrompt
-}
 $menuMailboxPermissions=@"
     1 Who has Full Access?
     2 Who has Send On Behalf Access?
@@ -626,7 +564,7 @@ $menuMailboxPermissions=@"
     Select a task by number or M
 "@
 Do {
-    Switch (showMenuMailboxPermissions $menuMailboxPermissions "`tMailbox Permissions Menu" -clearScreen) {
+    Switch (Show-Menu $menuMailboxPermissions "`tMailbox Permissions Menu" -clearScreen) {
         "1" { Measure-Command{GetFullAccess};start-sleep 3 }
         "2" { Measure-Command{GetSendOnBehalfAccess};start-sleep 3 }
         "3" { Measure-Command{GetSendAsAccess};start-sleep 3 }
@@ -640,21 +578,6 @@ Do {
 # MENU: EXCHANGE SYSTEM PROPERTIES
 #=================================
 Function thinkMenuExchange {
-Function showMenuExchange {
-    Param(
-    [Parameter(Position=0,Mandatory=$TRUE,HelpMessage="Exchange Menu Help Text")] [ValidateNotNullOrEmpty()] [string]$menuExchange,
-    [Parameter(Position=1)] [ValidateNotNullOrEmpty()] [string]$TitleExchange="menuExchange" ,
-    [switch]$clearScreen
-    )
-    if ($clearScreen) {Clear-Host}
-    Write-Host "`n`t$xAppName`n" -Fore Magenta
-    $menuExchangePrompt=$titleExchange
-    $menuExchangePrompt+="`n`t"
-    $menuExchangePrompt+="="*$titleExchange.Length
-    $menuExchangePrompt+="`n"
-    $menuExchangePrompt+=$menuExchange
-    Read-Host -Prompt $menuExchangePrompt
-}
 $menuExchange=@"
     1 Active Directory & Exchange Schema Versions
     2 Exchange Server(s) Admin Display Version(s)
@@ -666,7 +589,7 @@ $menuExchange=@"
     Select a task by number or M
 "@
 Do {
-    Switch (showMenuExchange $menuExchange "`tExchange Properties Menu" -clearScreen) {
+    Switch (Show-Menu $menuExchange "`tExchange Properties Menu" -clearScreen) {
         "1" { Measure-Command{GetExchangeSchemaVerions};start-sleep 3 }
         "2" { Measure-Command{GetExchangeServerNamesADV};start-sleep 3 }
         "3" { Measure-Command{messageVolStatsToEventLog};start-sleep 3 }
@@ -681,21 +604,6 @@ Do {
 # MENU: MAIN APPLICATION MENU
 #=================================
 Function thinkMenuMain {
-    Function showMenuMain {
-        Param(
-        [Parameter(Position=0,Mandatory=$TRUE,HelpMessage="Main Menu Help text")] [ValidateNotNullOrEmpty()] [string]$menuMain,
-        [Parameter(Position=1)] [ValidateNotNullOrEmpty()] [string]$TitleMain="menuMain" ,
-        [switch]$clearScreen
-        )
-        if ($clearScreen) {Clear-Host}
-        Write-Host "`n`t$xAppName`n" -Fore Cyan
-        $menuMainPrompt = $titleMain
-        $menuMainPrompt += "`n`t"
-        $menuMainPrompt += "="*$titleMain.Length
-        $menuMainPrompt += "`n"
-        $menuMainPrompt += $menuMain
-        Read-Host -Prompt $menuMainPrompt
-    }
 $menuMain=@"
     1 Exchange System Properties
     2 Mailbox Properties
@@ -708,7 +616,7 @@ $menuMain=@"
     Select a task by number or Q to quit
 "@
     Do {
-        Switch (showMenuMain $menuMain "`tMain Menu" -clearScreen) {
+        Switch (Show-Menu $menuMain "`tMain Menu" -clearScreen) {
             "1" { thinkMenuExchange }
             "2" { thinkMenuMailboxPermissions }
             "3" { thinkMailboxStats }
